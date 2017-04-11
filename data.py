@@ -12,6 +12,8 @@ class Scrape():
     """
 
     Contains the methods to scrape and save data.
+    Scrapes once, writes it to disk and after that every call to Scrape.read() will
+    just read from disk
 
     """
 
@@ -159,7 +161,7 @@ class Process():
         """
 
         statement = x.get('statement').strip().lower()
-        statement_without_punctuation = ''.join(x for x in statement if not in puncutation_set)
+        statement_without_punctuation = ''.join(x for x in statement if x not in puncutation_set)
 
         return statement_without_puncutation.split(" ")
 
@@ -194,4 +196,5 @@ class Process():
         return words, max_len
 
 if __name__ == "__main__":
-    pass
+
+    data = Scrape.read()
