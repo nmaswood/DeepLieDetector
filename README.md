@@ -6,6 +6,8 @@ This code does two things:
 
 ## Scrape Data from Politic Fact
 
+If the data is present on disk, `Scrape.read() `will just read data from disk. If the data is not present it will be scraped.
+
 ```python
 
 from data import Scrape
