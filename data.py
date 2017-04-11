@@ -132,7 +132,7 @@ class Truth():
 
 class Process():
 
-    puncutation_set = set(string.punctuation)
+    puncutation_set = set(punctuation)
     stopwords_set = set(stopwords.words('english'))
 
     @staticmethod
