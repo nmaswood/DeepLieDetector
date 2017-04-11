@@ -91,10 +91,10 @@ jkkgg
 
         data = [process_page(url,i) for i,url in enumerate(Scrape._get_links())]
 
-        data = sum(data, [])
+        flattened_data = sum(data, [])
 
         with open("truth_data.json", 'w') as outfile:
-            json.dump(sum(final_data,[]), outfile)
+            json.dump(flattened_data, outfile)
 
     @staticmethod
     def read():
