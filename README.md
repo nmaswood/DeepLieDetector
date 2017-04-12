@@ -16,6 +16,12 @@ from data import Scrape
 
 my_scraped_data = Scrape.read()
 
+# once the data is scraped simply do the following
+# this will clean and vectorize the data and put in all
+# in the Data struct.
+
+processed_data = Process.data_init(my_scraped_data)
+
 ```
 
 

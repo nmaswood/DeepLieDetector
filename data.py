@@ -2,10 +2,13 @@ import requests as r
 from bs4 import BeautifulSoup
 import json
 from time import sleep
-from nltk.corpus import stopwords
-from string import punctuation
-
+import re
+import keras
+import keras.preprocessing.text
+import numpy as np
 from pathlib import Path
+
+from keras.preprocessing.sequence import pad_sequences
 
 class Scrape():
 
@@ -114,7 +117,7 @@ jkkgg
 
 class Truth():
 
-    lies = {'Pants on Fire!', 'Full Flop', 'Mostly False', 'False'}
+    lies = {'Pants on Fire!', 'Full Flop', 'Mostly False', 'False', 'Half Flip'}
     truth = {'True', 'Mostly True', 'Half-True', 'No Flip'}
 
     both = [
@@ -122,6 +125,7 @@ class Truth():
             'Full Flop',
             'Mostly False',
             'False',
+            'Half Flip',
             'No Flip',
             'Half-True',
             'Mostly True',
@@ -131,9 +135,6 @@ class Truth():
     to_int = {truthy:i for i, truthy in enumerate(both)}
 
 class Process():
-
-    puncutation_set = set(punctuation)
-    stopwords_set = set(stopwords.words('english'))
 
     @staticmethod
     def _get_truth_and_convert_to_number(x):
@@ -147,7 +148,9 @@ class Process():
 
         """
 
-        return int(Truth.to_int.get(x.get('truth')))
+        truth_value = x.get('truth')
+
+        return int(Truth.to_int.get(truth_value))
 
     @staticmethod
     def _get_statement_and_strip(x):
@@ -160,20 +163,21 @@ class Process():
 
         """
 
-        statement = x.get('statement').strip().lower()
-        statement_without_punctuation = ''.join(x for x in statement if x not in puncutation_set)
+        statement = x.get('statement')
 
-        return statement_without_puncutation.split(" ")
+        statement = re.sub(r'''[()'",.]''', '', statement).strip()
+
+        return keras.preprocessing.text.text_to_word_sequence(statement, lower=True, split=" ")
 
     @staticmethod
-    def clean_data_and_split_statement(json_data):
+    def _clean_data_and_split_statement(json_data):
 
         return [(
             Process._get_truth_and_convert_to_number(x),
             Process._get_statement_and_strip(x)) for x in json_data]
 
     @staticmethod
-    def all_words(clean_data):
+    def _all_words(clean_data):
 
         """
         Returns all words present in statement and the length of the word with the maximum len
@@ -185,16 +189,141 @@ class Process():
 
         max_len = -float("inf")
 
-        for statement in statement:
+        for statement in statements:
 
             for word in statement:
+                words.add(word)
 
-                words |= word
+            max_len = max(len(statement), max_len)
 
-                max_len = max(len(word), max_len)
+        return sorted(list(words)), max_len
 
-        return words, max_len
+    @staticmethod
+    def _all_chars(all_words):
+
+        """
+
+        Returns all words present in statement and the length of the word with the maximum len
+
+        """
+
+        s = set()
+        l = -float("inf")
+        for word in all_words:
+            s |= set(word)
+            l = max(l, len(s))
+
+        return sorted(list(s)), l
+
+    @staticmethod
+    def _vectorize(clean_data, vocab, max_word_len):
+
+        # Reserve 0 for masking via pad_sequences
+
+        vocab_size = len(vocab) + 1
+
+        word_idx = {c: i + 1 for i, c in enumerate(vocab)}
+
+        xs_and_ys = [Process._vectorize_one(statement, word_idx, truthy, max_word_len) for truthy, statement in clean_data]
+
+        X = [x[0] for x in xs_and_ys]
+        y = [x[1] for x in xs_and_ys]
+
+        return X,y, word_idx
+
+    @staticmethod
+    def _vectorize_one(statement, vocab_dict, truthy, max_word_len):
+
+        """
+
+        Converts one sentence and one truthy value into an x and y vector respectively
+
+        """
+
+        X = [vocab_dict[word] for word in statement]
+
+        y = np.zeros(len(Truth.to_int))
+
+        y[truthy] = 1
+
+        return X,y
+
+    @staticmethod
+    def data_init(json_data):
+
+        """
+
+        Combines all the previous methods to clean and vectorize data
+
+        """
+
+        clean_data = Process._clean_data_and_split_statement(json_data)
+        all_words, max_word_len = Process._all_words(clean_data)
+        X,y, word_index = Process._vectorize(clean_data, all_words, max_word_len)
+
+        X = pad_sequences(X, maxlen = max_word_len),
+
+        return Data(
+                data = data,
+                clean_data = clean_data,
+                words = all_words,
+                word_index = word_index,
+                vocab_size = len(all_words) + 1,
+                max_word_len = max_word_len,
+                X = X,
+                y = y)
+
+
+class Data():
+
+    """
+
+    A struct to hold all the vectorized data information
+
+    """
+
+    def __init__(self,
+
+            data,
+            clean_data,
+            words,
+            word_index,
+            vocab_size,
+            max_word_len,
+            X,
+            y):
+        """
+        data
+            The original untouched data
+        clean_data
+            The cleaned data
+        word_index
+            mapping from words to indexes
+        vocab_size
+            Amount of words in vocab
+        max_word_len
+            The maximum length of a statement
+        X
+            The statements as vectors
+        y
+            The truth values as vectors
+        """
+
+        self.data = data
+        self.clean_data = clean_data
+        self.word_index = word_index
+        self.vocab_size = vocab_size
+        self.max_word_len = max_word_len
+        self.X = X
+        self.y = y
+
+    def __getitem__(self, key):
+
+        return getattr(self, key)
+
 
 if __name__ == "__main__":
 
     data = Scrape.read()
+    data_processed = Process.data_init(data)
+
